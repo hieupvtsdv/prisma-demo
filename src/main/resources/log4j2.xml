@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration>
+	<Appenders>
+		<Console name="Console" target="SYSTEM_OUT">
+			<PatternLayout
+				pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n" />
+		</Console>
+		<JDBC name="databaseAppender" tableName="journaldev.logging">
+			<DataSource jndiName="java:/comp/env/jdbc/JournalDevDB" />
+			<BurstFilter level="TRACE" rate="20" maxBurst="2"/>
+			<Column name="EVENT_DATE" isEventTimestamp="true" />
+			<Column name="LEVEL" pattern="%level" />
+			<Column name="LOGGER" pattern="%logger" />
+			<Column name="MSG" pattern="%message" />
+			<Column name="THROWABLE" pattern="%ex{full}" />
+		</JDBC>
+	</Appenders>
+	<Loggers>
+		<Root level="ERROR">
+			<AppenderRef ref="Console" />
+		</Root>
+		<logger name="com" level="TRACE" additivity="false">
+			<AppenderRef ref="databaseAppender" />
+		</logger>
+		<logger name="com.journaldev" additivity="false">
+			<AppenderRef ref="databaseAppender" />
+		</logger>
+	</Loggers>
+</Configuration>

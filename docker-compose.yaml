@@ -1,0 +1,32 @@
+version: '3.5'
+volumes:
+  sqlvolume:
+    external: false
+services:
+  mysql-server:
+    image: mysql
+    container_name: mysql-db-dev
+    restart: always
+    volumes:
+      - sqlvolume:/var/lib/mysql
+    ports:
+     - "3306:3306"
+    environment:
+     - MYSQL_ROOT_PASSWORD=123456
+     - MYSQL_DATABASE=userapidb
+    healthcheck:
+      test: "/etc/init.d/mysql status"
+      interval: 1s
+      retries: 120
+  webapi:
+    environment:
+      - DB_HOST=mysql-server
+      - DB_USER=root
+      - DB_PASS=123456
+    image: registry.gitlab.com/xzhoang/nodejsmysql
+    container_name: notes-api-dev
+    restart: always
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mysql-server
