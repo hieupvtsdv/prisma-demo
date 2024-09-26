@@ -4,19 +4,21 @@ pipeline {
         environment {
             // Prisma Cloud env
             PRISMA_API_URL = 'https://api.prismacloud.io'
-            PRISMA_API_KEY = '12345-xxxxx'
+            PRISMA_API_KEY = 'ACCESS_KEY::SECRET_KEY'
 
-            // Source code repository
-            CODE_REPO = 'https://gitlab.com/hieupvtsdv/prisma-demo'
+            // Source code repository demo
+            CODE_REPO = 'https://github.com/hieupvtsdv/prisma-demo'
+            REPO_ID = 'hieupvtsdv/prisma-demo'
+            BRANCH = 'main'
 
-            // Docker image
+            // Docker image demo
             DOCKER_IMAGE = 'prisma-demo'
         }
 
         stages {
             stage('Checkout') {
                 steps {
-                    git branch: 'master', url: "${env.CODE_REPO}"
+                    git branch: "${env.BRANCH}", url: "${env.CODE_REPO}"
                     stash includes: '**/*', name: 'source'
                 }
             }
@@ -27,7 +29,7 @@ pipeline {
                         docker.image('bridgecrew/checkov:latest').inside("--entrypoint=''") {
                             unstash 'source'
                             try {
-                                sh 'checkov -d . --use-enforcement-rules -o cli -o junitxml --output-file-path console,results.xml --bc-api-key $PRISMA_API_KEY --repo-id  $CODE_REPO --branch master'
+                                sh "checkov -d . --use-enforcement-rules -o cli -o junitxml --output-file-path console,results.xml --bc-api-key ${env.PRISMA_API_KEY} --repo-id  ${env.REPO_ID} --branch ${env.BRANCH}"
                                 junit skipPublishingChecks: true, testResults: 'results.xml'
                             } catch (err) {
                                 junit skipPublishingChecks: true, testResults: 'results.xml'
@@ -39,17 +41,38 @@ pipeline {
             }
 
             stage('Build Image') {
-                sh "docker build -t ${DOCKER_IMAGE}:${BUILD_NUMBER} ."
+                steps {
+                    script {
+                        sh 'docker build -t ${DOCKER_IMAGE}:${BUILD_NUMBER} .'
+                    }
+                }
             }
 
             stage('Scan Image by Prisma') {
-                prismaCloudScanImage ca: '', cert: '', dockerAddress: 'unix:///var/run/docker.sock', image:
-            '$DOCKER_IMAGE:$BUILD_NUMBER', key: '', logLevel: 'info', podmanPath: '', project: '', resultsFile:
-            'prisma-cloud-scan-results.json', ignoreImageBuildTime:true
+                steps {
+                    script {
+                        prismaCloudScanImage(
+                            ca: '', 
+                            cert: '', 
+                            dockerAddress: 'unix:///var/run/docker.sock', // unix:///run/podman/podman.sock
+                            image: "${DOCKER_IMAGE}:${BUILD_NUMBER}", 
+                            key: '', 
+                            logLevel: 'info', 
+                            podmanPath: '', 
+                            project: '', 
+                            resultsFile: 'prisma-cloud-scan-results.json',
+                            ignoreImageBuildTime: true
+                        )
+                    }
+                }
             }
 
             stage('Publish Scan result') {
-                prismaCloudPublish resultsFilePattern: 'prisma-cloud-scan-results.json'
+                steps {
+                    script {
+                        prismaCloudPublish resultsFilePattern: 'prisma-cloud-scan-results.json'
+                    }
+                }
             }
         }
 
