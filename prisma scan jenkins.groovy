@@ -54,10 +54,10 @@ pipeline {
                         prismaCloudScanImage(
                             ca: '', 
                             cert: '', 
-                            dockerAddress: 'unix:///var/run/docker.sock', // unix:///run/podman/podman.sock
+                            dockerAddress: 'unix:///var/run/docker.sock', // unix:///run/user/1000/podman/podman.sock
                             image: "${DOCKER_IMAGE}:${BUILD_NUMBER}", 
                             key: '', 
-                            logLevel: 'info', 
+                            logLevel: 'info', // 'debug'
                             podmanPath: '', 
                             project: '', 
                             resultsFile: 'prisma-cloud-scan-results.json',
