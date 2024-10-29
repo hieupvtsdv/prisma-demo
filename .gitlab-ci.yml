@@ -1,0 +1,87 @@
+variables:
+  # Prisma Cloud environment variables
+  PRISMA_API_URL: "https://api.prismacloud.io"
+  PRISMA_CONSOLE: "https://asia-southeast1.cloud.twistlock.com/aws-singapore-xxxxxx"
+  ACCESS_KEY: ""
+  SECRET_KEY: ""
+  PRISMA_API_KEY: "ACCESS_KEY::SECRET_KEY"
+
+  # Source code repository information
+  REPO_ID: "hieupvtsdv/prisma-demo"
+  BRANCH: "main"
+
+  # Docker image information
+  DOCKER_IMAGE: "prisma-demo"
+  DOCKER_TAG: "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHA}"
+
+image: docker:dind
+services:
+  - name: docker:dind
+    alias: docker
+      
+stages:
+  - sca_prisma  # SCA by Prisma Cloud*
+  - build       # Build image
+  - scan_prisma # Scan image by Prisma Cloud*
+  - publish     # Publish image to a registry
+
+# SCA by Prisma - runs Checkov for security analysis
+sca_prisma:
+  stage: sca_prisma
+  image:
+    name: docker.io/bridgecrew/checkov:latest
+    entrypoint:
+      - '/usr/bin/env'
+      - 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+  rules:
+    - if: $SAST_DISABLED
+      when: never
+    - if: $CI_COMMIT_BRANCH
+      exists:
+        - '**/*.yml'
+        - '**/*.yaml'
+        - '**/*.json'
+        - '**/*.template'
+        - '**/*.tf'      
+        - '**/serverless.yml'
+        - '**/serverless.yaml'
+  script:
+    - checkov -d . --use-enforcement-rules -o cli -o junitxml --output-file-path console,results.xml --bc-api-key ${PRISMA_API_KEY} --prisma-api-url ${PRISMA_API_URL} --repo-id ${REPO_ID} --branch ${BRANCH}
+  artifacts:
+    paths:
+      - results.xml
+    reports:
+      junit: results.xml
+  allow_failure: true
+
+# Build Image - builds Docker image
+build_image:
+  stage: build
+  tags:
+    - docker
+  script:
+    - docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
+
+# Scan Image by Prisma - Prisma Cloud image scan
+scan_prisma:
+  stage: scan_prisma
+  tags:
+    - docker
+  script:
+    # Get twistcli if not present
+    - docker images
+    - if ! curl &> /dev/null; then apk add curl; fi
+    - if ! ls twistcli &> /dev/null; then curl --progress-bar -L -k --user ${ACCESS_KEY}:${SECRET_KEY} ${PRISMA_CONSOLE}/api/v1/util/twistcli > twistcli; chmod a+x twistcli; fi
+    # Placeholder for Prisma Cloud image scan CLI command
+    - ./twistcli images scan --details --address ${PRISMA_CONSOLE} --user ${ACCESS_KEY} --password ${SECRET_KEY} ${DOCKER_IMAGE}:${DOCKER_TAG}
+  allow_failure: true
+
+# Publish Image
+publish_image:
+  stage: publish
+  script:
+    - echo "Publish image"
+  dependencies:
+    - scan_prisma
+  only:
+    - main
